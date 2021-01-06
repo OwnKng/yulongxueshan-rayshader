@@ -1,0 +1,87 @@
+---
+title: "README"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(rayshader)
+library(raster)
+```
+
+```{r}
+elevation <- raster("data/N27E100.hgt")
+```
+
+Read in the satellite imagery 
+
+```{r}
+r <- raster("data/LC08_L1TP_131041_20180126_20180207_01_T1/LC08_L1TP_131041_20180126_20180207_01_T1_B4.TIF")
+
+g <- raster("data/LC08_L1TP_131041_20180126_20180207_01_T1/LC08_L1TP_131041_20180126_20180207_01_T1_B3.TIF")
+
+b <- raster("data/LC08_L1TP_131041_20180126_20180207_01_T1/LC08_L1TP_131041_20180126_20180207_01_T1_B2.TIF")
+
+rgb <- sqrt(stack(r, g, b))
+
+```
+
+```{r}
+rgb <- projectRaster(rgb, crs = crs(elevation), method = "bilinear")
+
+```
+
+```{r}
+library(sf)
+
+point_1 <- c(y=100.05, x=27.25)
+point_2 <- c(y=100.3, x=27.0)
+
+extent_latlong <- st_sf(a = 1:2, geom = st_sfc(st_point(point_1), st_point(c(point_2))), crs = 4326) 
+
+e <- raster::extent(extent_latlong)
+
+elevation_cropped <- raster::crop(elevation, e)
+```
+
+
+```{r}
+rgb_cropped <- raster::crop(rgb, e)
+
+names(rgb_cropped) <- c("r","g","b")
+
+r_cropped <- raster_to_matrix(rgb_cropped$r)
+g_cropped <- raster_to_matrix(rgb_cropped$g)
+b_cropped <- raster_to_matrix(rgb_cropped$b)
+
+yu_long_matrix <- raster_to_matrix(elevation_cropped)
+
+rgb_array <- array(0,dim=c(nrow(r_cropped),ncol(r_cropped),3))
+
+rgb_array[,,1] <- r_cropped/255 
+rgb_array[,,2] <- g_cropped/255 
+rgb_array[,,3] <- b_cropped/255 
+
+rgb_array <- aperm(rgb_array, c(2,1,3))
+
+rgb_contrast <- scales::rescale(rgb_array,to=c(0,1))
+
+plot_map(rgb_contrast)
+
+```
+
+```{r}
+plot_3d(hillshade = rgb_contrast,
+        heightmap = yu_long_matrix,
+        zscale = 30, fov = 0, theta = 130, zoom = 0.5, 
+        phi = 20, solid = FALSE, windowsize = c(800, 500),
+        background = "#0f0e17", shadowcolor = "#0f0e17") 
+```
+
+```{r}
+save_obj("outputs/yulongxueshan.obj", save_texture = TRUE)
+```
+
+
+
+
